@@ -1,0 +1,21 @@
+# directories
+.venv1/
+data/
+
+# files
+scripts/config.py
+scripts/test.py
+
+
+
+# Python Cache / Bytecode
+__pycache__/
+*.pyc
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+
+# OS-specific
+.DS_Store
+Thumbs.db
