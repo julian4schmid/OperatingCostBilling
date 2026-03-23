@@ -1,4 +1,4 @@
-# Index Rent Adjustment Tool (German)
+# Automated Operating Cost Billing
 
 ## Overview
 OperatingCostBilling is a Python-based project for managing and calculating operating costs for rental properties.
