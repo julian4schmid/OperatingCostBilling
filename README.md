@@ -16,6 +16,7 @@ The project is designed with a clean separation between data storage (SQL), proc
 OperatingCostBilling/
 ├── scripts/                    
 │   ├── backup_db.py            # Backup PostgreSQL database
+│   ├── on_demand_import.py     # Import building and tenant data 
 │   ├── yearly_import.py        # Import yearly cost data
 │   ├── calculate_billing.py    # Calculate costs per tenant/unit
 │   ├── generate_reports.py     # Generate Excel/PDF reports
