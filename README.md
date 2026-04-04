@@ -1,4 +1,4 @@
-# Automated Operating Cost Billing
+# Automated Operating Cost Billing (work in progress)
 
 ## Overview
 OperatingCostBilling is a Python-based project for managing and calculating operating costs for rental properties.
