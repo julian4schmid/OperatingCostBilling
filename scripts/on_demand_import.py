@@ -9,7 +9,7 @@ TABLES = [
     "buildings",
     "units",
     "tenants",
-    "building_cost_allocation"
+    "building_cost_allocations"
 ]
 
 
@@ -40,7 +40,7 @@ def upsert_table(conn, table_name, df, overwrite=False):
         conflict_cols = ["building_id", "unit_position"]
     elif table_name == "tenants":
         conflict_cols = ["tenant_id"]
-    elif table_name == "building_cost_allocation":
+    elif table_name == "building_cost_allocations":
         conflict_cols = ["allocation_id"]
     else:
         raise ValueError(f"Unknown table: {table_name}")
