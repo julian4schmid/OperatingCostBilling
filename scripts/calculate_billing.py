@@ -3,88 +3,6 @@ from psycopg2.extras import RealDictCursor
 from yearly_import import get_connection
 
 
-# =========================
-# DATA LOADING
-# =========================
-
-def load_data(conn, building_id: str, year: int):
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        # Building
-        cur.execute("""
-            SELECT *
-            FROM buildings
-            WHERE building_id = %s
-        """, (building_id,))
-        building = cur.fetchone()
-
-        # Units
-        cur.execute("""
-            SELECT unit_position, living_area, total_area
-            FROM units
-            WHERE building_id = %s
-        """, (building_id,))
-        units = cur.fetchall()
-
-        # Tenants
-        cur.execute("""
-            SELECT tenant_id, building_id, unit_position, move_in, move_out
-            FROM tenants
-            WHERE building_id = %s
-        """, (building_id,))
-        tenants = cur.fetchall()
-
-        # Building costs
-        cur.execute("""
-            SELECT cost_type, amount
-            FROM building_costs
-            WHERE building_id = %s AND year = %s
-        """, (building_id, year))
-        costs = cur.fetchall()
-
-        # Individual costs
-        cur.execute("""
-            SELECT unit_position, cost_type, amount
-            FROM individual_costs
-            WHERE building_id = %s AND year = %s
-        """, (building_id, year))
-        individual_costs = cur.fetchall()
-
-        # Allocation rules
-        cur.execute("""
-            SELECT cost_type, allocation_key
-            FROM building_cost_allocation
-            WHERE building_id = %s
-        """, (building_id,))
-        allocations = cur.fetchall()
-
-    return {
-        "building": building,
-        "units": units,
-        "tenants": tenants,
-        "costs": costs,
-        "individual_costs": individual_costs,
-        "allocations": allocations
-    }
-
-
-# =========================
-# BUILD ALLOCATION MAP
-# =========================
-
-def build_allocation_map(data):
-    allocation_map = {}
-
-    for row in data["allocations"]:
-        cost_type = row["cost_type"]
-        allocation_key = row["allocation_key"]
-
-        if not cost_type or not allocation_key:
-            raise ValueError(f"Invalid allocation row: {row}")
-
-        allocation_map[cost_type] = allocation_key
-
-    return allocation_map
-
 
 # =========================
 # MAIN ENTRY
@@ -113,6 +31,94 @@ def calculate_billing(building_id: str, year: int):
     finally:
         conn.close()
 
+# =========================
+# DATA LOADING
+# =========================
+
+def load_data(conn, building_id: str, year: int):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Building
+        cur.execute("""
+            SELECT *
+            FROM buildings
+            WHERE building_id = %s
+        """, (building_id,))
+        building = cur.fetchone()
+
+        # Units
+        cur.execute("""
+            SELECT *
+            FROM units
+            WHERE building_id = %s
+        """, (building_id,))
+        units = cur.fetchall()
+
+        # Tenants
+        cur.execute("""
+            SELECT *
+            FROM tenants
+            WHERE building_id = %s
+        """, (building_id,))
+        tenants = cur.fetchall()
+
+        # Building costs
+        cur.execute("""
+            SELECT *
+            FROM building_costs
+            WHERE building_id = %s AND year = %s
+        """, (building_id, year))
+        costs = cur.fetchall()
+
+        # Individual costs
+        cur.execute("""
+            SELECT *
+            FROM individual_costs
+            WHERE building_id = %s AND year = %s
+        """, (building_id, year))
+        individual_costs = cur.fetchall()
+
+        # Allocation rules
+        cur.execute("""
+            SELECT *
+            FROM building_cost_allocation
+            WHERE building_id = %s
+        """, (building_id,))
+        allocations = cur.fetchall()
+
+    return {
+        "building": building,
+        "units": units,
+        "tenants": tenants,
+        "costs": costs,
+        "individual_costs": individual_costs,
+        "allocations": allocations
+    }
+
+
+# =========================
+# BUILD MAPS
+# =========================
+
+def build_allocation_map(data):
+    allocation_map = {}
+
+    for row in data["allocations"]:
+        cost_type = row["cost_type"]
+        allocation_key = row["allocation_key"]
+
+        if not cost_type or not allocation_key:
+            raise ValueError(f"Invalid allocation row: {row}")
+
+        allocation_map[cost_type] = allocation_key
+
+    return allocation_map
+
+def get_unit_by_id(unit_id, units):
+    for u in units:
+        if u["unit_id"] == unit_id:
+            return u
+
+    raise ValueError(f"Unit not found for unit_id: {unit_id}")
 
 # =========================
 # TENANT CALCULATION
@@ -122,7 +128,7 @@ def calculate_for_tenant(tenant, data, allocation_map, year):
     result = {
         "tenant_id": tenant["tenant_id"],
         "building_id": tenant["building_id"],
-        "unit_position": tenant["unit_position"],
+        "unit_id": tenant["unit_id"],
         "lines": [],
         "total_costs": 0
     }
@@ -145,7 +151,7 @@ def calculate_for_tenant(tenant, data, allocation_map, year):
 
     # Individual costs
     for ic in data["individual_costs"]:
-        if ic["unit_position"] == tenant["unit_position"]:
+        if ic["unit_id"] == tenant["unit_id"]:
             amount = float(ic["amount"] or 0)
 
             result["lines"].append({
@@ -241,7 +247,7 @@ def calculate_cost_share(tenant, cost, data, allocation_map, occupancy_factor):
     allocation_key = get_allocation_key(cost_type, allocation_map)
 
     if allocation_key == "living_area":
-        share = distribute_by_living_area(tenant, data)
+        share = distribute_by_tenant_area(tenant, data)
 
     elif allocation_key == "total_area":
         share = distribute_by_total_area(tenant, data)
@@ -266,36 +272,26 @@ def calculate_cost_share(tenant, cost, data, allocation_map, occupancy_factor):
 # ALLOCATION METHODS
 # =========================
 
-def distribute_by_living_area(tenant, data):
-    unit_position = tenant["unit_position"]
+def distribute_by_tenant_area(tenant, data):
+    unit = get_unit_by_id(tenant["unit_id"], data["units"])
 
-    total_area = sum(u["living_area"] or 0 for u in data["units"])
+    total_area = data["building"]["total_tenant_area"]
+    tenant_area = unit["living_area"]
 
-    tenant_area = next(
-        u["living_area"] or 0
-        for u in data["units"]
-        if u["unit_position"] == unit_position
-    )
-
-    if total_area == 0:
-        raise ValueError("Total living area is 0")
+    if total_area <= 0 or tenant_area <= 0:
+        raise ValueError("Area smaller or equal 0")
 
     return tenant_area / total_area
 
 
 def distribute_by_total_area(tenant, data):
-    unit_position = tenant["unit_position"]
+    unit = get_unit_by_id(tenant["unit_id"], data["units"])
 
-    total_area = sum(u["total_area"] or 0 for u in data["units"])
+    total_area = data["building"]["total_area"]
+    tenant_area = unit["living_area"]
 
-    tenant_area = next(
-        u["total_area"] or 0
-        for u in data["units"]
-        if u["unit_position"] == unit_position
-    )
-
-    if total_area == 0:
-        raise ValueError("Total area is 0")
+    if total_area <= 0 or tenant_area <= 0:
+        raise ValueError("Area smaller or equal 0")
 
     return tenant_area / total_area
 
