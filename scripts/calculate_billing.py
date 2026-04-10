@@ -3,7 +3,6 @@ from psycopg2.extras import RealDictCursor
 from yearly_import import get_connection
 
 
-
 # =========================
 # MAIN ENTRY
 # =========================
@@ -24,12 +23,14 @@ def calculate_billing(building_id: str, year: int):
                 allocation_map,
                 year
             )
-            results.append(result)
+            if result:
+                results.append(result)
 
         return results
 
     finally:
         conn.close()
+
 
 # =========================
 # DATA LOADING
@@ -113,6 +114,7 @@ def build_allocation_map(data):
 
     return allocation_map
 
+
 def get_unit_by_id(unit_id, units):
     for u in units:
         if u["unit_id"] == unit_id:
@@ -120,20 +122,25 @@ def get_unit_by_id(unit_id, units):
 
     raise ValueError(f"Unit not found for unit_id: {unit_id}")
 
+
 # =========================
 # TENANT CALCULATION
 # =========================
 
 def calculate_for_tenant(tenant, data, allocation_map, year):
+    months = calculate_occupancy_months(tenant, data["building"], year)
+
+    if months == 0:
+        return None
+
     result = {
         "tenant_id": tenant["tenant_id"],
         "building_id": tenant["building_id"],
         "unit_id": tenant["unit_id"],
+        "months": months,
         "lines": [],
         "total_costs": 0
     }
-
-    occupancy_factor = calculate_occupancy_factor(tenant, year)
 
     # Building costs
     for cost in data["costs"]:
@@ -142,7 +149,7 @@ def calculate_for_tenant(tenant, data, allocation_map, year):
             cost,
             data,
             allocation_map,
-            occupancy_factor
+            months
         )
 
         if line:
@@ -156,7 +163,7 @@ def calculate_for_tenant(tenant, data, allocation_map, year):
 
             result["lines"].append({
                 "cost_type": ic["cost_type"],
-                "allocation": "individual",
+                "allocation": ic["allocation_key"],
                 "amount": amount
             })
 
@@ -168,6 +175,7 @@ def calculate_for_tenant(tenant, data, allocation_map, year):
 # =========================
 # OCCUPANCY CALCULATION
 # =========================
+
 def get_billing_period(building, year):
     """
     Returns (start_date, end_date) based on first_billing_month
@@ -185,11 +193,15 @@ def get_billing_period(building, year):
 
     return start, end
 
-def calculate_occupancy_factor(tenant, building, year):
+
+def calculate_occupancy_months(tenant, building, year):
     move_in = tenant["move_in"]
     move_out = tenant["move_out"]
 
     period_start, period_end = get_billing_period(building, year)
+
+    if move_in > period_end or (move_out and move_out < period_start):
+        return 0
 
     total_months = 12.0
 
@@ -233,32 +245,41 @@ def calculate_occupancy_factor(tenant, building, year):
     if total_months < 0:
         total_months = 0
 
-    return total_months / 12
+    return total_months
 
 
 # =========================
 # COST DISTRIBUTION
 # =========================
 
-def calculate_cost_share(tenant, cost, data, allocation_map, occupancy_factor):
+def calculate_cost_share(tenant, cost, data, allocation_map, months):
     cost_type = cost["cost_type"]
     total_amount = float(cost["amount"] or 0)
 
     allocation_key = get_allocation_key(cost_type, allocation_map)
 
-    if allocation_key == "living_area":
+    if allocation_key == "qm Wohn":
         share = distribute_by_tenant_area(tenant, data)
 
-    elif allocation_key == "total_area":
+    elif allocation_key == "qm":
         share = distribute_by_total_area(tenant, data)
 
-    elif allocation_key == "persons":
+    elif allocation_key == "Personen":
         share = distribute_by_persons(tenant, data)
+
+    elif allocation_key == "Wohnungen":
+        pass
+
+    elif allocation_key == "Garagen":
+        pass
+
+    elif allocation_key == "Wohnungen":
+        pass
 
     else:
         raise ValueError(f"Unknown allocation key: {allocation_key}")
 
-    final_amount = total_amount * share * occupancy_factor
+    final_amount = total_amount * share * (months / 12)
 
     return {
         "cost_type": cost_type,
