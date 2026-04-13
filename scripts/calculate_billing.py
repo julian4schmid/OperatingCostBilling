@@ -11,19 +11,31 @@ def calculate_billing(building_id: str, year: int):
     conn = get_connection()
 
     try:
+        # load data
         data = load_data(conn, building_id, year)
+
+        # build lookup maps and do precalculations
+        occupancy_map = build_occupancy_map(data, year)
         allocation_map = build_allocation_map(data)
+        people_map = build_people_map(data, occupancy_map)
+        special_cases = calculate_special_costs(data)
+
+        maps = {
+            "occupancy": occupancy_map,
+            "allocation": allocation_map,
+            "people": people_map,
+            "special": special_cases
+        }
 
         results = []
 
         for tenant in data["tenants"]:
-            result = calculate_for_tenant(
-                tenant,
-                data,
-                allocation_map,
-                year
-            )
-            if result:
+            if tenant["tenant_id"] in occupancy_map:
+                result = calculate_for_tenant(
+                    tenant,
+                    data,
+                    maps
+                )
                 results.append(result)
 
         return results
@@ -100,6 +112,17 @@ def load_data(conn, building_id: str, year: int):
 # BUILD MAPS
 # =========================
 
+def build_occupancy_map(data, year):
+    occupancy_map = {}
+
+    for tenant in data["tenants"]:
+        months = calculate_occupancy_months(tenant, data["building"], year)
+        if months > 0:
+            occupancy_map[tenant["tenant_id"]] = months
+
+    return occupancy_map
+
+
 def build_allocation_map(data):
     allocation_map = {}
 
@@ -115,23 +138,52 @@ def build_allocation_map(data):
     return allocation_map
 
 
-def get_unit_by_id(unit_id, units):
-    for u in units:
-        if u["unit_id"] == unit_id:
-            return u
+def build_people_map(data, occupancy_map):
+    person_map = {}
+    needed = False
+    for allocation in data["allocations"]:
+        if allocation["allocation_key"] == "Personen":
+            needed = True
 
-    raise ValueError(f"Unit not found for unit_id: {unit_id}")
+    if needed:
+        for tenant in data["tenants"]:
+            if tenant["tenant_id"] in occupancy_map:
+                person_map[tenant["tenant_id"]] = tenant["pers_count"]
+
+    return person_map
+
+
+# precalculation for distribution type "qm Wohn +"
+def calculate_special_costs(data):
+    special_costs = {}
+
+    for allocation in data["allocations"]:
+        if allocation["allocation_key"] == "qm Wohn +":
+            cost_type = allocation["cost_type"]
+            total_cost = 0
+
+            for cost in data["costs"]:
+                if cost["cost_type"] == cost_type:
+                    total_cost = cost["amount"]
+
+            if total_cost == 0:
+                raise ValueError(cost_type + "not found. Error")
+
+            for ic in data["individual_costs"]:
+                if ic["cost_type"] == cost_type:
+                    total_cost -= ic["amount"]
+
+            special_costs[cost_type] = total_cost
+
+    return special_costs
 
 
 # =========================
 # TENANT CALCULATION
 # =========================
 
-def calculate_for_tenant(tenant, data, allocation_map, year):
-    months = calculate_occupancy_months(tenant, data["building"], year)
-
-    if months == 0:
-        return None
+def calculate_for_tenant(tenant, data, maps):
+    months = maps["occupancy"][tenant["tenant_id"]]
 
     result = {
         "tenant_id": tenant["tenant_id"],
@@ -148,7 +200,7 @@ def calculate_for_tenant(tenant, data, allocation_map, year):
             tenant,
             cost,
             data,
-            allocation_map,
+            maps,
             months
         )
 
@@ -252,40 +304,45 @@ def calculate_occupancy_months(tenant, building, year):
 # COST DISTRIBUTION
 # =========================
 
-def calculate_cost_share(tenant, cost, data, allocation_map, months):
+def calculate_cost_share(tenant, cost, data, maps, months):
     cost_type = cost["cost_type"]
     total_amount = float(cost["amount"] or 0)
 
-    allocation_key = get_allocation_key(cost_type, allocation_map)
+    # initialize variables
+    special_amount = 0
+
+    allocation_key = get_allocation_key(cost_type, maps["allocation"])
 
     if allocation_key == "qm Wohn":
-        share = distribute_by_tenant_area(tenant, data)
+        amount = distribute_by_tenant_area(tenant, data) * total_amount * (months / 12)
 
     elif allocation_key == "qm":
-        share = distribute_by_total_area(tenant, data)
+        amount = distribute_by_total_area(tenant, data) * total_amount * (months / 12)
 
     elif allocation_key == "Personen":
-        share = distribute_by_persons(tenant, data)
+        amount = distribute_by_people(tenant, data, maps) * total_amount
 
     elif allocation_key == "Wohnungen":
-        pass
+        amount = distribute_by_units(tenant, data) * total_amount * (months / 12)
 
     elif allocation_key == "Garagen":
-        pass
+        amount = distribute_by_garages(tenant, data) * total_amount * (months / 12)
 
-    elif allocation_key == "Wohnungen":
-        pass
+
+    elif allocation_key == "qm Wohn +":
+        special_amount = maps["special"]["cost_type"]
+        amount = distribute_by_tenant_area(tenant, data) * special_amount * (months / 12)
+
 
     else:
         raise ValueError(f"Unknown allocation key: {allocation_key}")
 
-    final_amount = total_amount * share * (months / 12)
-
     return {
         "cost_type": cost_type,
         "allocation": allocation_key,
-        "share": share,
-        "amount": round(final_amount, 2)
+        "total_amount": total_amount,
+        "amount": round(amount, 2),
+        "special_amount": special_amount
     }
 
 
@@ -317,15 +374,39 @@ def distribute_by_total_area(tenant, data):
     return tenant_area / total_area
 
 
-def distribute_by_persons(tenant, data):
-    """
-    Placeholder for future implementation.
-    """
-    return 1.0
+def distribute_by_people(tenant, data, maps):
+    if "people" not in maps["special"]:
+        distribute_by_people_help(maps)
+
+    tenant_id = tenant["tenant_id"]
+    tenant_people_months = maps["occupancy"][tenant_id] * maps["people"][tenant_id]
+    total_people_months = maps["special"]["people"]
+
+    return tenant_people_months / total_people_months
+
+
+def distribute_by_people_help(maps):
+    people_months = 0
+    for tenant_id in maps["occupancy"]:
+        people_months += maps["occupancy"][tenant_id] * maps["people"][tenant_id]
+    maps["special"]["people"] = people_months
+
+
+def distribute_by_units(tenant, data):
+    total_units = data["building"]["unit_count"]
+
+    return 1 / total_units
+
+
+def distribute_by_garages(tenant, data):
+    total_garages = data["building"]["gar_count"]
+    tenant_garages = tenant["gar_count"]
+
+    return tenant_garages / total_garages
 
 
 # =========================
-# ALLOCATION LOOKUP
+# LOOKUPS
 # =========================
 
 def get_allocation_key(cost_type, allocation_map):
@@ -335,14 +416,9 @@ def get_allocation_key(cost_type, allocation_map):
     return allocation_map[cost_type]
 
 
-# =========================
-# SPECIAL CASES
-# =========================
+def get_unit_by_id(unit_id, units):
+    for u in units:
+        if u["unit_id"] == unit_id:
+            return u
 
-def handle_commercial_water_adjustment(data):
-    """
-    Future:
-    - subtract commercial water usage
-    - distribute remaining costs
-    """
-    pass
+    raise ValueError(f"Unit not found for unit_id: {unit_id}")
