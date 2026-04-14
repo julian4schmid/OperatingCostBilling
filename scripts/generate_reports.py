@@ -2,6 +2,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, Border, Side
 import os
 from config import TEMPLATE_DIR, OUTPUT_DIR
+from calculate_billing import get_billing_period
 
 
 # =========================
@@ -20,21 +21,79 @@ def generate_reports(results, data):
 # =========================
 
 def generate_single_report(result, data):
-    TEMPLATE_PATH = os.path.join(TEMPLATE_DIR, "billing_template.xlsx")
-    wb = load_workbook(TEMPLATE_PATH)
+    template_path = os.path.join(TEMPLATE_DIR, "billing_template.xlsx")
+    wb = load_workbook(template_path)
     ws = wb.active
 
     tenant = get_tenant(result["tenant_id"], data)
     building = data["building"]
     unit = get_unit(result["unit_id"], data)
+    year = data["year"]
+    is_shop = unit.get("is_shop", False)
 
     # =========================
     # HEADER (FIXED CELLS)
     # =========================
 
-    ws["B2"] = tenant.get("name", "")
-    ws["B3"] = unit.get("unit_label", "")
-    ws["B4"] = building.get("name", "")
+    # sender
+    ws["F1"] = building["sender"]
+    ws["F2"] = building.get("sender_address", "")
+
+    # bank details
+    ws["F5"] = building["owner"]
+    ws["F6"] = f"IBAN: {building["bank_account"]}"
+    ws["F7"] = building.get("bank", "")
+
+    # address
+    ws["A7"] = build_recipients_name(tenant, 1)
+    ws["A8"] = build_recipients_name(tenant, 2)
+    ws["A9"] = building["address"]
+    ws["A10"] = building["city_line"]
+    if tenant.get("new_address"):
+        ws["A9"] = tenant["new_address"]
+        ws["A10"] = tenant["new_city_line"]
+
+    # general information
+    ws["F10"] = "Wohn- und Geschäftshaus" if building.get("has_shops", False) else "Wohnhaus"
+    ws["F11"] = f"{building["address"]}, {building["city_line"]}"
+    period = get_billing_period(building, year)
+    ws["F12"] = (f"Abrechnungszeitraum: "
+                 f"{period[0].strftime("%d.%m.%y")} - {period[1].strftime("%d.%m.%y")}")
+
+    # information for calculation
+    ws["H20"] = tenant.get("prepay_ops", 0)
+    ws["H19"] = result["months"]
+    row = 18
+    if not building["is_single_unit"]:
+        ws[f"F{row}"] = "Ihre Wohnfläche:" if not is_shop else "Ihre Nutzfläche:"
+        ws[f"H{row}"] = unit["area"]
+        ws[f"I{row}"] = "qm"
+        row -= 1
+        ws[f"F{row}"] = "Ihre Wohnung:" if not is_shop else "Ihre Lage:"
+        ws[f"H{row}"] = unit["position"]
+        row -= 1
+
+        if building.get("gar_count", 0) > 0:
+            ws[f"F{row}"] = "Anzahl Garagen:"
+            ws[f"H{row}"] = building["gar_count"]
+            row -= 1
+
+        if building.get("unit_count", 0) > 0:
+            ws[f"F{row}"] = "Anzahl Wohnungen:"
+            ws[f"H{row}"] = building["unit_count"]
+            row -= 1
+
+        if building.get("total_tenant_area", 0) > 0:
+            ws[f"F{row}"] = "Gesamtwohnfl.:"
+            ws[f"H{row}"] = building["total_tenant_area"]
+            ws[f"I{row}"] = "qm (*)"
+            row -= 1
+
+        if building.get("total_area", 0) > 0:
+            ws[f"F{row}"] = "Gesamtwohnnutzfl.:" if building.get("has_shops", False) else "Gesamtwohnfl.:"
+            ws[f"H{row}"] = building["total_area"]
+            ws[f"I{row}"] = "qm"
+            row -= 1
 
     # =========================
     # COST TABLE
@@ -133,3 +192,16 @@ def get_unit(unit_id, data):
         if u["unit_id"] == unit_id:
             return u
     raise ValueError("Unit not found")
+
+def build_recipients_name(tenant, n):
+    name = tenant.get(f"salutation{n}", "").strip()
+    if name == "Herr":
+        name = "Herrn"
+    if tenant.get(f"title{n}").strip() is not None:
+        name += f" {tenant.get(f"title{n}").strip()}"
+    if tenant.get(f"first_name{n}").strip() is not None:
+        name += f" {tenant.get(f"first_name{n}").strip()}"
+    if tenant.get(f"last_name{n}").strip() is not None:
+        name += f" {tenant.get(f"last_name{n}").strip()}"
+
+    return name
