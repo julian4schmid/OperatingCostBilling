@@ -104,7 +104,8 @@ def load_data(conn, building_id: str, year: int):
         "tenants": tenants,
         "costs": costs,
         "individual_costs": individual_costs,
-        "allocations": allocations
+        "allocations": allocations,
+        "year": year
     }
 
 
@@ -330,7 +331,7 @@ def calculate_cost_share(tenant, cost, data, maps, months):
 
 
     elif allocation_key == "qm Wohn +":
-        special_amount = maps["special"]["cost_type"]
+        special_amount = maps["special"][cost_type]
         amount = distribute_by_tenant_area(tenant, data) * special_amount * (months / 12)
 
 
