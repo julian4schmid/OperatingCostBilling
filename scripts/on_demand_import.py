@@ -37,7 +37,7 @@ def upsert_table(conn, table_name, df, overwrite=False):
     if table_name == "buildings":
         conflict_cols = ["building_id"]
     elif table_name == "units":
-        conflict_cols = ["building_id", "unit_position"]
+        conflict_cols = ["unit_id"]
     elif table_name == "tenants":
         conflict_cols = ["tenant_id"]
     elif table_name == "building_cost_allocations":
