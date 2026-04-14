@@ -355,7 +355,7 @@ def distribute_by_tenant_area(tenant, data):
     unit = get_unit_by_id(tenant["unit_id"], data["units"])
 
     total_area = data["building"]["total_tenant_area"]
-    tenant_area = unit["living_area"]
+    tenant_area = unit["area"]
 
     if total_area <= 0 or tenant_area <= 0:
         raise ValueError("Area smaller or equal 0")
@@ -367,7 +367,7 @@ def distribute_by_total_area(tenant, data):
     unit = get_unit_by_id(tenant["unit_id"], data["units"])
 
     total_area = data["building"]["total_area"]
-    tenant_area = unit["living_area"]
+    tenant_area = unit["area"]
 
     if total_area <= 0 or tenant_area <= 0:
         raise ValueError("Area smaller or equal 0")
