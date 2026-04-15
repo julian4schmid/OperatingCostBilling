@@ -306,45 +306,55 @@ def calculate_occupancy_months(tenant, building, year):
 # =========================
 
 def calculate_cost_share(tenant, cost, data, maps, months):
-    cost_type = cost["cost_type"]
-    total_amount = float(cost["amount"] or 0)
-
-    # initialize variables
-    special_amount = 0
-
-    allocation_key = get_allocation_key(cost_type, maps["allocation"])
-
-    if allocation_key == "qm Wohn":
-        amount = distribute_by_tenant_area(tenant, data) * total_amount * (months / 12)
-
-    elif allocation_key == "qm":
-        amount = distribute_by_total_area(tenant, data) * total_amount * (months / 12)
-
-    elif allocation_key == "Personen":
-        amount = distribute_by_people(tenant, data, maps) * total_amount
-
-    elif allocation_key == "Wohnungen":
-        amount = distribute_by_units(tenant, data) * total_amount * (months / 12)
-
-    elif allocation_key == "Garagen":
-        amount = distribute_by_garages(tenant, data) * total_amount * (months / 12)
-
-
-    elif allocation_key == "qm Wohn +":
-        special_amount = maps["special"][cost_type]
-        amount = distribute_by_tenant_area(tenant, data) * special_amount * (months / 12)
-
+    if data["building"]["is_single_unit"]:
+        return {
+            "cost_type": cost["cost_type"],
+            "allocation": "",
+            "total_amount": "",
+            "amount": round(cost["amount"], 2),
+            "special_amount": ""
+        }
 
     else:
-        raise ValueError(f"Unknown allocation key: {allocation_key}")
+        cost_type = cost["cost_type"]
+        total_amount = float(cost["amount"] or 0)
 
-    return {
-        "cost_type": cost_type,
-        "allocation": allocation_key,
-        "total_amount": total_amount,
-        "amount": round(amount, 2),
-        "special_amount": special_amount
-    }
+        # initialize variables
+        special_amount = 0
+
+        allocation_key = get_allocation_key(cost_type, maps["allocation"])
+
+        if allocation_key == "qm Wohn":
+            amount = distribute_by_tenant_area(tenant, data) * total_amount * (months / 12)
+
+        elif allocation_key == "qm":
+            amount = distribute_by_total_area(tenant, data) * total_amount * (months / 12)
+
+        elif allocation_key == "Personen":
+            amount = distribute_by_people(tenant, data, maps) * total_amount
+
+        elif allocation_key == "Wohnungen":
+            amount = distribute_by_units(tenant, data) * total_amount * (months / 12)
+
+        elif allocation_key == "Garagen":
+            amount = distribute_by_garages(tenant, data) * total_amount * (months / 12)
+
+
+        elif allocation_key == "qm Wohn +":
+            special_amount = maps["special"][cost_type]
+            amount = distribute_by_tenant_area(tenant, data) * special_amount * (months / 12)
+
+
+        else:
+            raise ValueError(f"Unknown allocation key: {allocation_key}")
+
+        return {
+            "cost_type": cost_type,
+            "allocation": allocation_key,
+            "total_amount": total_amount,
+            "amount": round(amount, 2),
+            "special_amount": special_amount
+        }
 
 
 # =========================
