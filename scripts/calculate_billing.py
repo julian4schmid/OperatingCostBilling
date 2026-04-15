@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from psycopg2.extras import RealDictCursor
 from yearly_import import get_connection
 
@@ -212,16 +212,23 @@ def calculate_for_tenant(tenant, data, maps):
     # Individual costs
     for ic in data["individual_costs"]:
         if ic["unit_id"] == tenant["unit_id"]:
-            amount = float(ic["amount"] or 0)
 
-            result["lines"].append({
-                "type": "individual",
-                "cost_type": ic["cost_type"],
-                "allocation": ic["allocation_key"],
-                "amount": amount
-            })
+            # check if it is the right tenant for cases of change of tenants
+            cost_date = ic.get("date")
+            if not cost_date or is_date_in_tenancy_period(tenant, cost_date):
+                amount = float(ic["amount"] or 0)
 
-            result["total_costs"] += amount
+                result["lines"].append({
+                    "type": "individual",
+                    "cost_type": ic["cost_type"],
+                    "allocation": ic["allocation_key"],
+                    "amount": amount,
+                    "total_amount": ic["total_amount"],
+                    "usage": ic["usage"],
+                    "price": ic["price"]
+                })
+
+                result["total_costs"] += amount
 
     return result
 
@@ -439,3 +446,9 @@ def get_unit_by_id(unit_id, units):
             return u
 
     raise ValueError(f"Unit not found for unit_id: {unit_id}")
+
+def is_date_in_tenancy_period(tenant, date):
+    move_in = tenant.get("move_in")
+    move_out = tenant.get("move_out") or datetime.max
+
+    return move_in <= date <= move_out
