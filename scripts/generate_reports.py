@@ -69,27 +69,27 @@ def generate_single_report(result, data):
         ws[f"H{row}"] = unit.get("area")
         ws[f"I{row}"] = "qm"
         row -= 1
-        ws[f"F{row}"] = "Ihre Wohnung:" if not is_shop else "Ihre Lage:"
+        ws[f"F{row}"] = "Ihre Lage:" if not is_shop else "Ihre Lage:"
         ws[f"H{row}"] = unit.get("position")
         row -= 1
 
-        if building.get("gar_count", 0) > 0:
+        if building.get("gar_count") or 0 > 0:
             ws[f"F{row}"] = "Anzahl Garagen:"
             ws[f"H{row}"] = building.get("gar_count")
             row -= 1
 
-        if building.get("unit_count", 0) > 0:
+        if building.get("unit_count") or 0 > 0:
             ws[f"F{row}"] = "Anzahl Wohnungen:"
             ws[f"H{row}"] = building.get("unit_count")
             row -= 1
 
-        if building.get("total_tenant_area", 0) > 0:
+        if building.get("total_tenant_area") or 0 > 0:
             ws[f"F{row}"] = "Gesamtwohnfl.:"
             ws[f"H{row}"] = building.get("total_tenant_area")
             ws[f"I{row}"] = "qm (*)"
             row -= 1
 
-        if building.get("total_area", 0) > 0:
+        if building.get("total_area") or 0 > 0:
             ws[f"F{row}"] = "Gesamtwohnnutzfl.:" if building.get("has_shops", False) else "Gesamtwohnfl.:"
             ws[f"H{row}"] = building.get("total_area")
             ws[f"I{row}"] = "qm"
