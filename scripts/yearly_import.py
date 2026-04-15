@@ -114,6 +114,7 @@ def import_costs(year: int, overwrite: bool = False):
         date_val = row[6]
         usage = row[7]
         price = row[8]
+        total_amount = row[9]
 
         # --- normalize date ---
         if pd.isna(date_val):
@@ -124,6 +125,7 @@ def import_costs(year: int, overwrite: bool = False):
         # --- normalize numeric fields ---
         usage = None if pd.isna(usage) else float(usage)
         price = None if pd.isna(price) else float(price)
+        total_amount = None if pd.isna(total_amount) else float(total_amount)
 
         seen_individual_keys.add(cost_id)
 
@@ -158,7 +160,8 @@ def import_costs(year: int, overwrite: bool = False):
                 allocation_key,
                 date_val,
                 usage,
-                price
+                price,
+                total_amount
             ))
             continue
 
@@ -180,7 +183,8 @@ def import_costs(year: int, overwrite: bool = False):
                         allocation_key,
                         date_val,
                         usage,
-                        price
+                        price,
+                        total_amount
                     ))
                 else:
                     print(
@@ -204,7 +208,8 @@ def import_costs(year: int, overwrite: bool = False):
                 allocation_key,
                 date_val,
                 usage,
-                price
+                price,
+                total_amount
             ))
         else:
             continue
@@ -260,9 +265,10 @@ def import_costs(year: int, overwrite: bool = False):
                 allocation_key,
                 date,
                 usage,
-                price
+                price,
+                total_amount
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (cost_id)
             DO UPDATE SET
                 building_id = EXCLUDED.building_id,
@@ -273,7 +279,8 @@ def import_costs(year: int, overwrite: bool = False):
                 allocation_key = EXCLUDED.allocation_key,
                 date = EXCLUDED.date,
                 usage = EXCLUDED.usage,
-                price = EXCLUDED.price
+                price = EXCLUDED.price,
+                total_amount = EXCLUDED.total_amount
         """, individual_rows)
 
     conn.commit()
