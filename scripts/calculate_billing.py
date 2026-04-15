@@ -215,6 +215,7 @@ def calculate_for_tenant(tenant, data, maps):
             amount = float(ic["amount"] or 0)
 
             result["lines"].append({
+                "type": "individual",
                 "cost_type": ic["cost_type"],
                 "allocation": ic["allocation_key"],
                 "amount": amount
@@ -308,6 +309,7 @@ def calculate_occupancy_months(tenant, building, year):
 def calculate_cost_share(tenant, cost, data, maps, months):
     if data["building"]["is_single_unit"]:
         return {
+            "type": "general",
             "cost_type": cost["cost_type"],
             "allocation": "",
             "total_amount": "",
@@ -348,6 +350,7 @@ def calculate_cost_share(tenant, cost, data, maps, months):
 
 
         return {
+            "type": "general",
             "cost_type": cost_type,
             "allocation": allocation_key,
             "total_amount": total_amount,
