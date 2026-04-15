@@ -339,14 +339,13 @@ def calculate_cost_share(tenant, cost, data, maps, months):
         elif allocation_key == "Garagen":
             amount = distribute_by_garages(tenant, data) * total_amount * (months / 12)
 
-
         elif allocation_key == "qm Wohn +":
             special_amount = maps["special"][cost_type]
             amount = distribute_by_tenant_area(tenant, data) * special_amount * (months / 12)
 
-
         else:
             raise ValueError(f"Unknown allocation key: {allocation_key}")
+
 
         return {
             "cost_type": cost_type,
@@ -363,14 +362,18 @@ def calculate_cost_share(tenant, cost, data, maps, months):
 
 def distribute_by_tenant_area(tenant, data):
     unit = get_unit_by_id(tenant["unit_id"], data["units"])
+    if unit.get("is_shop", False):
+        return 0
+    else:
+        unit = get_unit_by_id(tenant["unit_id"], data["units"])
 
-    total_area = data["building"]["total_tenant_area"]
-    tenant_area = unit["area"]
+        total_area = data["building"]["total_tenant_area"]
+        tenant_area = unit["area"]
 
-    if total_area <= 0 or tenant_area <= 0:
-        raise ValueError("Area smaller or equal 0")
+        if total_area <= 0 or tenant_area <= 0:
+            raise ValueError("Area smaller or equal 0")
 
-    return tenant_area / total_area
+        return tenant_area / total_area
 
 
 def distribute_by_total_area(tenant, data):
