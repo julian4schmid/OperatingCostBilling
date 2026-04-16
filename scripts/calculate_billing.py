@@ -192,7 +192,7 @@ def calculate_for_tenant(tenant, data, maps):
         "unit_id": tenant["unit_id"],
         "months": months,
         "lines": [],
-        "total_costs": 0
+        "total_tenant_costs": 0
     }
 
     # Building costs
@@ -207,7 +207,7 @@ def calculate_for_tenant(tenant, data, maps):
 
         if line:
             result["lines"].append(line)
-            result["total_costs"] += line["amount"]
+            result["total_tenant_costs"] += line["amount"]
 
     # Individual costs
     for ic in data["individual_costs"]:
@@ -228,7 +228,7 @@ def calculate_for_tenant(tenant, data, maps):
                     "price": ic["price"]
                 })
 
-                result["total_costs"] += amount
+                result["total_tenant_costs"] += amount
 
     return result
 
