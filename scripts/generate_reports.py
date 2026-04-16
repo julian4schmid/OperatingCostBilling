@@ -105,14 +105,15 @@ def generate_single_report(result, data):
     # header
     header_row = 22
     if building["is_single_unit"]:
-        ws[f"I{header_row}"] = "Kosten/€"
+        ws[f"I{header_row}"] = "Kosten(€)"
     else:
-        ws[f"E{header_row}"] = "Gesamtkosten/€"
+        ws[f"E{header_row}"] = "Gesamtkosten(€)"
         ws[f"G{header_row}"] = "Verteilt"
-        ws[f"I{header_row}"] = "Ihr Anteil/€"
+        ws[f"I{header_row}"] = "Ihr Anteil(€)"
 
     # costs
     row = header_row + 2
+    total_amount_sum = 0
     for line in result["lines"]:
         if line["amount"] > 0:
             ws[f"A{row}"] = line.get("cost_type")
@@ -121,57 +122,61 @@ def generate_single_report(result, data):
             if not building["is_single_unit"]:
                 ws[f"E{row}"] = line.get("total_amount") or ""
                 ws[f"G{row}"] = line.get("allocation") or ""
+                total_amount_sum += line.get("total_amount") or 0
+
+                # special case: usage
+                if line.get("type") == "individual" and (line.get("usage") or 0) > 0:
+                    ws[f"C{header_row}"] = "Verbrauch x Preis"
+                    ws[f"B{row}"] = f"{line.get("usage")} cbm x {round(line.get("price"), 4)}  €/cbm"
+
+                # special case: usage of shops removed before
+                if line.get("type") == "general" and (line.get("special_amount") or 0) > 0:
+                    ws[f"C{header_row}"] = "ohne Gewerbe(€)"
+                    ws[f"C{row}"] = line.get("special_amount")
 
             row += 1
 
+    # total costs
 
+    row -= 1
+    draw_bottom_border(ws, row)
+    row += 2
 
+    ws[f"A{row}"] = "Gesamtkosten"
+    if not building["is_single_unit"]:
+        ws[f"E{row}"] = total_amount_sum
+    ws[f"E{row}"] = result["total_tenant_cost"]
+    row += 1
 
-    # =========================
-    # BORDER BEFORE TOTAL
-    # =========================
-
-    draw_bottom_border(ws, current_row)
-
-    current_row += 1
-
-    # =========================
-    # TOTAL COSTS
-    # =========================
-
-    ws[f"C{current_row}"] = "Total costs"
-    ws[f"D{current_row}"] = result["total_costs"]
-
-    current_row += 1
-
-    draw_bottom_border(ws, current_row)
-
-    # =========================
-    # PREPAYMENT
-    # =========================
-
-    prepayment = tenant.get("yearly_prepayment", 0)
-
-    ws[f"C{current_row}"] = "Prepayment"
-    ws[f"D{current_row}"] = prepayment
-
-    current_row += 1
+    prepayment = tenant.get("prepay_ops") * result.get("months")
+    ws[f"A{row}"] = "Ihre Vorauszahlung"
+    ws[f"I{row}"] = prepayment
+    draw_bottom_border(ws, row)
+    row += 2
 
     # =========================
     # FINAL BALANCE
     # =========================
 
-    balance = result["total_costs"] - prepayment
+    balance = prepayment - result["total_tenant_cost"]
 
-    ws[f"C{current_row}"] = "Balance (credit / debit)"
-    ws[f"D{current_row}"] = balance
+    ws[f"A{row}"] = "Guthaben" if balance >= 0 else "Nachzahlung"
+    ws[f"I{row}"] = abs(balance)
 
-    # apply dotted fill from template row 20
-    apply_template_fill(ws, source_row=20, target_row=current_row)
+    # apply formatting
+    apply_template_fill(ws, source_row=header_row, target_row=row)
+    ws[f"A{row}"].font = Font(bold=True)
+    ws[f"I{row}"].font = Font(bold=True)
+    row += 3
 
-    # make final row bold
-    ws[f"C{current_row}"].font = Font(bold=True)
-    ws[f"D{current_row}"].font = Font(bold=True)
+    # =========================
+    # ADDITIONAL REMARKS
+    # =========================
+
+    if balance >= 0:
+        ws[f"A{row}"] = "Das Guthaben wird Ihnen per Banküberweisung erstattet."
+    else:
+        ws[f"A{row}"] = "Die Nachzahlung überweisen Sie bitte mit der nächsten Mietzahlung auf das oben genannte Bankkonto."
 
     # =========================
     # SAVE FILE
@@ -188,12 +193,12 @@ def generate_single_report(result, data):
 def draw_bottom_border(ws, row):
     border = Border(bottom=Side(style="thin"))
 
-    for col in ["A", "B", "C", "D"]:
+    for col in ["I", "E"]:
         ws[f"{col}{row}"].border = border
 
 
 def apply_template_fill(ws, source_row, target_row):
-    for col in ["A", "B", "C", "D"]:
+    for col in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]:
         ws[f"{col}{target_row}"].fill = ws[f"{col}{source_row}"].fill
 
 
