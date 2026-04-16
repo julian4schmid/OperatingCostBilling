@@ -73,7 +73,7 @@ def generate_single_report(result, data):
         ws[f"H{row}"] = unit.get("position")
         row -= 1
 
-        if building.get("gar_count") or 0 > 0:
+        if (building.get("gar_count") or 0 > 0) and tenant.get("gar_count") > 0:
             ws[f"F{row}"] = "Ihre Garagen:"
             ws[f"H{row}"] = tenant.get("gar_count")
             row -= 1
