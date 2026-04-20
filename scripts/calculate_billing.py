@@ -154,12 +154,12 @@ def build_people_map(data, occupancy_map):
     return person_map
 
 
-# precalculation for distribution type "qm Wohn +"
+# precalculation for distribution type "Fläche * +"
 def calculate_special_costs(data):
     special_costs = {}
 
     for allocation in data["allocations"]:
-        if allocation["allocation_key"] == "qm Wohn +":
+        if allocation["allocation_key"] == "Fläche * +":
             cost_type = allocation["cost_type"]
             total_cost = 0
 
@@ -333,10 +333,10 @@ def calculate_cost_share(tenant, cost, data, maps, months):
 
         allocation_key = get_allocation_key(cost_type, maps["allocation"])
 
-        if allocation_key == "qm Wohn":
+        if allocation_key == "Fläche *":
             amount = distribute_by_tenant_area(tenant, data) * total_amount * (months / 12)
 
-        elif allocation_key == "qm":
+        elif allocation_key == "Fläche":
             amount = distribute_by_total_area(tenant, data) * total_amount * (months / 12)
 
         elif allocation_key == "Personen":
@@ -348,7 +348,7 @@ def calculate_cost_share(tenant, cost, data, maps, months):
         elif allocation_key == "Garagen":
             amount = distribute_by_garages(tenant, data) * total_amount * (months / 12)
 
-        elif allocation_key == "qm Wohn +":
+        elif allocation_key == "Fläche * +":
             special_amount = maps["special"][cost_type]
             amount = distribute_by_tenant_area(tenant, data) * special_amount * (months / 12)
 
