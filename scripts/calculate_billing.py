@@ -286,7 +286,7 @@ def calculate_occupancy_months(tenant, building, year):
         if 28 <= move_out.day <= 31:
             deduction = 0.0
         else:
-            deduction = (29 - move_out.day) / 30
+            deduction = (30 - min(move_out.day, 30)) / 30
 
         # months after move_out
         months_after = (period_end.year - move_out.year) * 12 + (period_end.month - move_out.month)
@@ -366,7 +366,7 @@ def calculate_cost_share(tenant, cost, data, maps, months):
 
 def distribute_by_tenant_area(tenant, data):
     unit = get_unit_by_id(tenant["unit_id"], data["units"])
-    if unit.get("is_shop", False):
+    if unit.get("is_shop"):
         return 0
     else:
         unit = get_unit_by_id(tenant["unit_id"], data["units"])
