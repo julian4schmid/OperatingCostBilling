@@ -270,12 +270,8 @@ def calculate_occupancy_months(tenant, building, year):
     # MOVE IN ADJUSTMENT
     # =========================
     if move_in and period_start <= move_in <= period_end:
-        if move_in.day == 1:
-            deduction = 0.0
-        elif 2 <= move_in.day <= 15:
-            deduction = 0.5
-        else:
-            deduction = 1.0
+
+        deduction = (move_in.day - 1) / 30
 
         # months before move_in
         months_before = (move_in.year - period_start.year) * 12 + (move_in.month - period_start.month)
@@ -289,10 +285,8 @@ def calculate_occupancy_months(tenant, building, year):
     if move_out and period_start <= move_out <= period_end:
         if 28 <= move_out.day <= 31:
             deduction = 0.0
-        elif 14 <= move_out.day <= 27:
-            deduction = 0.5
         else:
-            deduction = 1.0
+            deduction = (29 - move_out.day) / 30
 
         # months after move_out
         months_after = (period_end.year - move_out.year) * 12 + (period_end.month - move_out.month)
