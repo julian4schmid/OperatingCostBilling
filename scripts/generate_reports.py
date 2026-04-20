@@ -30,6 +30,7 @@ def generate_single_report(result, data):
     unit = get_unit(result["unit_id"], data)
     year = data["year"]
     is_shop = unit.get("is_shop", False)
+    remarks = {}
 
     # =========================
     # HEADER (FIXED CELLS)
@@ -73,7 +74,7 @@ def generate_single_report(result, data):
         ws[f"H{row}"] = unit.get("position")
         row -= 1
 
-        if (building.get("gar_count") or 0 > 0) and tenant.get("gar_count") > 0:
+        if ((building.get("gar_count") or 0) > 0) and tenant.get("gar_count") > 0:
             ws[f"F{row}"] = "Ihre Garagen:"
             ws[f"H{row}"] = tenant.get("gar_count")
             row -= 1
@@ -81,19 +82,21 @@ def generate_single_report(result, data):
             ws[f"H{row}"] = building.get("gar_count")
             row -= 1
 
-        if building.get("unit_count") or 0 > 0:
+        if (building.get("unit_count") or 0) > 0:
             ws[f"F{row}"] = "Anzahl Wohnungen:"
             ws[f"H{row}"] = building.get("unit_count")
             row -= 1
 
-        if building.get("total_tenant_area") or 0 > 0:
-            ws[f"F{row}"] = "Gesamtwohnfl.:"
+        # if there are costs that explicitly exclude shops
+        if (building.get("total_tenant_area") or 0) > 0:
+            ws[f"F{row}"] = "Gesamtwohnfl. *:"
             ws[f"H{row}"] = building.get("total_tenant_area")
-            ws[f"I{row}"] = "qm (*)"
+            ws[f"I{row}"] = "qm"
             row -= 1
+            remarks["*"] = "ohne Gewerbe"
 
-        if building.get("total_area") or 0 > 0:
-            ws[f"F{row}"] = "Gesamtwohnnutzfl.:" if building.get("has_shops", False) else "Gesamtwohnfl.:"
+        if (building.get("total_area") or 0) > 0:
+            ws[f"F{row}"] = "Gesamtwohnnutzfl.:" if (building.get("has_shops") or False) else "Gesamtwohnfläche:"
             ws[f"H{row}"] = building.get("total_area")
             ws[f"I{row}"] = "qm"
             row -= 1
@@ -105,11 +108,11 @@ def generate_single_report(result, data):
     # header
     header_row = 22
     if building["is_single_unit"]:
-        ws[f"I{header_row}"] = "Kosten(€)"
+        ws[f"I{header_row}"] = "Kosten (€)"
     else:
-        ws[f"E{header_row}"] = "Gesamtkosten(€)"
+        ws[f"E{header_row}"] = "Gesamtkosten (€)"
         ws[f"G{header_row}"] = "Verteilt"
-        ws[f"I{header_row}"] = "Ihr Anteil(€)"
+        ws[f"I{header_row}"] = "Ihr Anteil (€)"
 
     # costs
     row = header_row + 2
@@ -131,8 +134,10 @@ def generate_single_report(result, data):
 
                 # special case: usage of shops removed before
                 if line.get("type") == "general" and (line.get("special_amount") or 0) > 0:
-                    ws[f"C{header_row}"] = "ohne Gewerbe(€)"
+                    ws[f"C{header_row}"] = " * (€)"
                     ws[f"C{row}"] = line.get("special_amount")
+                    # adjust name slightly
+                    ws[f"A{row}"] = line.get("cost_type").removesuffix(" +")
 
             row += 1
 
