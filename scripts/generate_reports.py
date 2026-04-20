@@ -88,7 +88,7 @@ def generate_single_report(result, data):
             row -= 1
 
         # if there are costs that explicitly exclude shops
-        if (building.get("total_tenant_area") or 0) > 0:
+        if (building.get("total_tenant_area") or 0) > 0 and not tenant.get("is_shop"):
             ws[f"F{row}"] = "Gesamtwohnfl. *:"
             ws[f"H{row}"] = building.get("total_tenant_area")
             ws[f"I{row}"] = "qm"
