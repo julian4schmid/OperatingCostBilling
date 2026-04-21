@@ -286,7 +286,7 @@ def calculate_occupancy_months(tenant, building, year):
         if 28 <= move_out.day <= 31:
             deduction = 0.0
         else:
-            deduction = (30 - min(move_out.day, 30)) / 30
+            deduction = (30 - move_out.day) / 30
 
         # months after move_out
         months_after = (period_end.year - move_out.year) * 12 + (period_end.month - move_out.month)
