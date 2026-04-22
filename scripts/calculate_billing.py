@@ -140,7 +140,7 @@ def build_allocation_map(data):
 
 
 def build_people_map(data, occupancy_map):
-    person_map = {}
+    people_map = {}
     needed = False
     for allocation in data["allocations"]:
         if allocation["allocation_key"] == "Personen":
@@ -149,17 +149,17 @@ def build_people_map(data, occupancy_map):
     if needed:
         for tenant in data["tenants"]:
             if tenant["tenant_id"] in occupancy_map:
-                person_map[tenant["tenant_id"]] = tenant["pers_count"]
+                people_map[tenant["tenant_id"]] = tenant["pers_count"]
 
-    return person_map
+    return people_map
 
 
-# precalculation for distribution type "Fläche * +"
+# precalculation for distribution type "Fläche* +"
 def calculate_special_costs(data):
     special_costs = {}
 
     for allocation in data["allocations"]:
-        if allocation["allocation_key"] == "Fläche * +":
+        if allocation["allocation_key"] == "Fläche* +":
             cost_type = allocation["cost_type"]
             total_cost = 0
 
@@ -188,11 +188,11 @@ def calculate_for_tenant(tenant, data, maps):
 
     result = {
         "tenant_id": tenant["tenant_id"],
-        "building_id": tenant["building_id"],
         "unit_id": tenant["unit_id"],
         "months": months,
         "lines": [],
-        "total_tenant_costs": 0
+        "total_tenant_costs": 0,
+        "maps": maps
     }
 
     # Building costs
@@ -270,7 +270,6 @@ def calculate_occupancy_months(tenant, building, year):
     # MOVE IN ADJUSTMENT
     # =========================
     if move_in and period_start <= move_in <= period_end:
-
         deduction = (move_in.day - 1) / 30
 
         # months before move_in
@@ -327,7 +326,7 @@ def calculate_cost_share(tenant, cost, data, maps, months):
 
         allocation_key = get_allocation_key(cost_type, maps["allocation"])
 
-        if allocation_key == "Fläche *":
+        if allocation_key == "Fläche*":
             amount = distribute_by_tenant_area(tenant, data) * total_amount * (months / 12)
 
         elif allocation_key == "Fläche":
@@ -342,13 +341,12 @@ def calculate_cost_share(tenant, cost, data, maps, months):
         elif allocation_key == "Garagen":
             amount = distribute_by_garages(tenant, data) * total_amount * (months / 12)
 
-        elif allocation_key == "Fläche * +":
+        elif allocation_key == "Fläche* +":
             special_amount = maps["special"][cost_type]
             amount = distribute_by_tenant_area(tenant, data) * special_amount * (months / 12)
 
         else:
             raise ValueError(f"Unknown allocation key: {allocation_key}")
-
 
         return {
             "type": "general",
@@ -440,6 +438,7 @@ def get_unit_by_id(unit_id, units):
             return u
 
     raise ValueError(f"Unit not found for unit_id: {unit_id}")
+
 
 def is_date_in_tenancy_period(tenant, date):
     move_in = tenant.get("move_in")
