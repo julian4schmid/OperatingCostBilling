@@ -1,6 +1,7 @@
 from openpyxl import load_workbook
 from openpyxl.styles import Font, Border, Side
 import os
+from datetime import date
 from config import TEMPLATE_DIR, OUTPUT_DIR
 from calculate_billing import get_billing_period
 
@@ -198,9 +199,15 @@ def generate_single_report(result, data):
     if balance >= 0:
         ws[f"A{row}"] = "Das Guthaben wird Ihnen per Banküberweisung erstattet."
     else:
-        ws[
-            f"A{row}"] = "Die Nachzahlung überweisen Sie bitte mit der nächsten Mietzahlung auf das oben genannte Bankkonto."
+        ws[f"A{row}"] = ("Die Nachzahlung überweisen Sie bitte mit der nächsten Mietzahlung "
+                         "auf das oben genannte Bankkonto.")
     row += 2
+
+    if not is_shop:
+        ws[f"A{row}"] = "Etwaige Hausmeister- und Schornsteinfegerkosten enthalten ausschließlich Arbeitsleistungen "
+        row += 1
+        ws[f"A{row}"] = "und sind gemäß § 35a EStG steuerlich begünstigt."
+        row += 2
 
     if remarks["*"]:
         ws[f"A{row}"] = "* ohne Gewerbe"
@@ -230,7 +237,15 @@ def generate_single_report(result, data):
         draw_bottom_border(ws, row - 1, ["H"])
         ws[f"H{row}"] = result.get("maps").get("special").get("people")
 
+        row += 2
 
+    # =========================
+    # END OF LETTER
+    # =========================
+
+    ws[f"A{row}"] = "Gauting, den"
+    ws[f"B{row}"] = date.today()
+    ws[f"G{row}"] = building.get("sender")
 
     # =========================
     # SAVE FILE
