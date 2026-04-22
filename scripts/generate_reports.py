@@ -29,7 +29,7 @@ def generate_single_report(result, data):
     building = data["building"]
     unit = get_unit(result["unit_id"], data)
     year = data["year"]
-    is_shop = unit.get("is_shop", False)
+    is_shop = unit.get("is_shop")
     remarks = {}
 
     # =========================
@@ -144,7 +144,7 @@ def generate_single_report(result, data):
     # total costs
 
     row -= 1
-    draw_bottom_border(ws, row)
+    draw_bottom_border(ws, row, ["I"])
     row += 2
 
     ws[f"A{row}"] = "Gesamtkosten"
@@ -156,7 +156,7 @@ def generate_single_report(result, data):
     prepayment = tenant.get("prepay_ops") * result.get("months")
     ws[f"A{row}"] = "Ihre Vorauszahlung"
     ws[f"I{row}"] = prepayment
-    draw_bottom_border(ws, row)
+    draw_bottom_border(ws, row, ["I"])
     row += 2
 
     # =========================
@@ -167,6 +167,18 @@ def generate_single_report(result, data):
 
     ws[f"A{row}"] = "Guthaben" if balance >= 0 else "Nachzahlung"
     ws[f"I{row}"] = abs(balance)
+
+    # add tax
+    if is_shop and building.get("has_tax"):
+        tax = round(abs(balance) * 0.19, 2)
+        ws[f"A{row}"] = "Guthaben Netto" if balance >= 0 else "Nachzahlung Netto"
+        row += 1
+        ws[f"A{row}"] = "zzgl. 19 % MwSt."
+        ws[f"I{row}"] = tax
+        row += 1
+        draw_bottom_border(ws, row, ["I"])
+        ws[f"A{row}"] = "Guthaben Brutto" if balance >= 0 else "Nachzahlung Brutto"
+        ws[f"I{row}"] = abs(balance) + tax
 
     # apply formatting
     apply_template_fill(ws, source_row=header_row, target_row=row)
@@ -187,7 +199,7 @@ def generate_single_report(result, data):
     # SAVE FILE
     # =========================
 
-    filename = f"{OUTPUT_DIR}/tenant_{result['tenant_id']}.xlsx"
+    filename = f"{OUTPUT_DIR}/Betriebskosten_{result['tenant_id']}_{year}.xlsx"
     wb.save(filename)
 
 
@@ -195,10 +207,10 @@ def generate_single_report(result, data):
 # HELPERS
 # =========================
 
-def draw_bottom_border(ws, row):
+def draw_bottom_border(ws, row, cols):
     border = Border(bottom=Side(style="thin"))
 
-    for col in ["I", "E"]:
+    for col in cols:
         ws[f"{col}{row}"].border = border
 
 
