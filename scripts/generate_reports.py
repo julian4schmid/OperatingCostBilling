@@ -30,7 +30,8 @@ def generate_single_report(result, data):
     unit = get_unit(result["unit_id"], data)
     year = data["year"]
     is_shop = unit.get("is_shop")
-    remarks = {}
+    remarks = {"*": False,
+               "**": False}
 
     # =========================
     # HEADER (FIXED CELLS)
@@ -89,11 +90,11 @@ def generate_single_report(result, data):
 
         # if there are costs that explicitly exclude shops
         if (building.get("total_tenant_area") or 0) > 0 and not tenant.get("is_shop"):
-            ws[f"F{row}"] = "Gesamtwohnfl. *:"
+            ws[f"F{row}"] = "Gesamtwohnfl.*:"
             ws[f"H{row}"] = building.get("total_tenant_area")
             ws[f"I{row}"] = "qm"
             row -= 1
-            remarks["*"] = "ohne Gewerbe"
+            remarks["*"] = True
 
         if (building.get("total_area") or 0) > 0:
             ws[f"F{row}"] = "Gesamtwohnnutzfl.:" if (building.get("has_shops") or False) else "Gesamtwohnfläche:"
@@ -134,10 +135,14 @@ def generate_single_report(result, data):
 
                 # special case: usage of shops removed before
                 if line.get("type") == "general" and (line.get("special_amount") or 0) > 0:
-                    ws[f"C{header_row}"] = " * (€)"
+                    ws[f"C{header_row}"] = "* (€)"
                     ws[f"C{row}"] = line.get("special_amount")
                     # adjust name slightly
                     ws[f"A{row}"] = line.get("cost_type").removesuffix(" +")
+
+                # special case: people
+                if line.get("allocation") or "" == "Personen**":
+                    remarks["**"] = True
 
             row += 1
 
@@ -193,7 +198,39 @@ def generate_single_report(result, data):
     if balance >= 0:
         ws[f"A{row}"] = "Das Guthaben wird Ihnen per Banküberweisung erstattet."
     else:
-        ws[f"A{row}"] = "Die Nachzahlung überweisen Sie bitte mit der nächsten Mietzahlung auf das oben genannte Bankkonto."
+        ws[
+            f"A{row}"] = "Die Nachzahlung überweisen Sie bitte mit der nächsten Mietzahlung auf das oben genannte Bankkonto."
+    row += 2
+
+    if remarks["*"]:
+        ws[f"A{row}"] = "* ohne Gewerbe"
+        row += 1
+
+    if remarks["**"]:
+        ws[f"A{row}"] = "** Berechnung der Anteile:"
+        row += 1
+        ws[f"A{row}"] = "Lage"
+        ws[f"E{row}"] = "Personen"
+        ws[f"F{row}"] = "x"
+        ws[f"G{row}"] = "Monate"
+        ws[f"H{row}"] = "Anteile"
+        row += 1
+
+        people_map = result.get("maps").get("people")
+        occupancy_map = result.get("maps").get("occupancy")
+        for tenant_id in people_map:
+            cur_tenant = get_tenant(tenant_id, data)
+            cur_unit =  get_unit(cur_tenant.get("unit_id"), data)
+            ws[f"A{row}"] = cur_unit.get("position")
+            ws[f"E{row}"] = people_map.get(tenant_id)
+            ws[f"G{row}"] = occupancy_map.get(tenant_id)
+            ws[f"H{row}"] = people_map.get(tenant_id) * occupancy_map.get(tenant_id)
+            row += 1
+
+        draw_bottom_border(ws, row - 1, ["H"])
+        ws[f"H{row}"] = result.get("maps").get("special").get("people")
+
+
 
     # =========================
     # SAVE FILE
@@ -231,6 +268,7 @@ def get_unit(unit_id, data):
         if u["unit_id"] == unit_id:
             return u
     raise ValueError("Unit not found")
+
 
 def build_recipients_name(tenant, n):
     name = tenant.get(f"salutation{n}", "").strip()
